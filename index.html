@@ -144,13 +144,39 @@ td select, td input[type=text]{min-width:110px;}
 footer{max-width:980px; margin:10px auto 30px; padding:0 20px; color:var(--text-dim); font-family:var(--mono); font-size:11px; text-align:center;}
 
 /* ---------- Impresión ---------- */
+@page{ size:A4 landscape; margin:10mm; }
 @media print{
+  html, body{width:100%; background:#fff; color:#111;}
   header.topbar, .no-print{display:none !important;}
-  body{background:#fff; color:#111;}
-  section.card{border:1px solid #ccc; break-inside:avoid; background:#fff;}
+  main{max-width:none; width:100%; margin:0; padding:0; gap:14px;}
+  section.card{
+    border:1px solid #ccc; break-inside:avoid; page-break-inside:avoid;
+    background:#fff; border-radius:6px; padding:12px 14px;
+  }
+  .section-head h2{font-size:15px;}
+  .section-sub, .hint{color:#444;}
+  .tick-divider{display:none;}
   input, select, textarea{border:1px solid #999 !important; color:#111 !important; background:#fff !important;}
-  .photo-box{border:1px solid #999;}
+  input[type=file]{display:none !important;}
+  select{background-image:none !important;}
+  .photo-box{border:1px solid #999; min-height:70px;}
+  .photo-box img{min-height:0; max-height:130px; object-fit:contain;}
+  .photo-box .ph-label{display:none;}
   a{color:#111;}
+
+  /* Tabla de la Sección 4 (y cualquier tabla ancha): que salga completa, sin recorte */
+  .table-wrap{overflow:visible !important; width:100% !important; border:none;}
+  table{width:100% !important; min-width:0 !important; table-layout:fixed; font-size:10.5px;}
+  th, td{padding:5px 6px; word-break:break-word;}
+  td.comp-name{min-width:0;}
+  td select, td input[type=text]{min-width:0; font-size:10px; padding:4px 5px;}
+  .photo-thumb-cell{width:70px;}
+  .photo-thumb-cell .photo-box{min-height:55px;}
+  .photo-thumb-cell .photo-box img{min-height:0; max-height:55px;}
+  tr{break-inside:avoid; page-break-inside:avoid;}
+
+  .people-grid{grid-template-columns:repeat(3, 1fr);}
+  .person-card .photo-box{min-height:90px;}
 }
 </style>
 </head>
@@ -171,10 +197,7 @@ footer{max-width:980px; margin:10px auto 30px; padding:0 20px; color:var(--text-
       <a href="#s5">05 Cierre</a>
     </nav>
     <div class="actions no-print">
-      <button id="btnExport">⬇ Exportar .json</button>
-      <button id="btnImport">⬆ Importar .json</button>
-      <input type="file" id="fileImport" accept="application/json" hidden>
-      <button class="primary" id="btnPrint">🖨 Imprimir / PDF</button>
+      <button class="primary" id="btnSubir">⬆ Subir</button>
     </div>
   </div>
 </header>
@@ -337,6 +360,9 @@ footer{max-width:980px; margin:10px auto 30px; padding:0 20px; color:var(--text-
 
 <footer>Informe de campo · Uso sin conexión · Los datos permanecen en tu navegador hasta exportarlos</footer>
 
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 /* ---------- Utilidades de foto ---------- */
 function buildPhotoBox(container, label){
@@ -443,58 +469,105 @@ function addTecnico(){
 document.getElementById('btnAddTecnico').addEventListener('click', addTecnico);
 addTecnico(); addTecnico(); addTecnico();
 
-/* ---------- Imprimir ---------- */
-document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
+/* =========================================================
+   SUBIR A DRIVE (genera PDF del informe y lo sube a la carpeta)
+   ---------------------------------------------------------
+   CONFIGURACIÓN REQUERIDA ANTES DE USAR (ver README):
+   1) Crear un OAuth Client ID de tipo "Web application" en
+      Google Cloud Console y pegarlo en GOOGLE_CLIENT_ID.
+   2) Agregar la URL donde vive esta página (ej. tu dominio
+      de GitHub Pages) como "Authorized JavaScript origin".
+   3) Habilitar la API de Google Drive en ese mismo proyecto.
+   ========================================================= */
+const GOOGLE_CLIENT_ID = 'TU_CLIENT_ID.apps.googleusercontent.com'; // <-- reemplazar
+const DRIVE_FOLDER_ID  = '16w5IZOB8wuhzJhPEQwPieXDuGV3BtweE';        // carpeta de Drive proporcionada
+const DRIVE_SCOPE      = 'https://www.googleapis.com/auth/drive.file';
 
-/* ---------- Exportar / Importar JSON (incluye fotos en base64) ---------- */
-function collectData(){
-  const data = { campos:{}, fotos:[] };
-  document.querySelectorAll('main input[type=text], main input[type=date], main input[type=number], main select, main textarea').forEach(el=>{
-    const key = el.id || el.dataset.field;
-    if(key) data.campos[key] = el.value;
+let accessToken = null;
+let tokenClient = null;
+
+function initGoogleAuth(){
+  if(typeof google === 'undefined' || !google.accounts) { return; }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: (resp)=>{
+      if(resp && resp.access_token){ accessToken = resp.access_token; generarYSubirPdf(); }
+      else{ resetBtnSubir(); alert('No se pudo autenticar con Google.'); }
+    }
   });
-  document.querySelectorAll('[data-photo-slot], .photo-thumb-cell .photo-box').forEach((box, i)=>{
-    const img = box.querySelector('img');
-    box.dataset.photoIndex = i;
-    if(img) data.fotos.push({index:i, src:img.src}); 
-  });
-  return data;
 }
-document.getElementById('btnExport').addEventListener('click', ()=>{
-  const data = collectData();
-  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const fecha = document.getElementById('fecha').value || 'sin-fecha';
-  a.href = url; a.download = `informe-mantenimiento-${fecha}.json`;
-  a.click(); URL.revokeObjectURL(url);
+window.addEventListener('load', initGoogleAuth);
+
+const btnSubir = document.getElementById('btnSubir');
+function resetBtnSubir(){ btnSubir.disabled = false; btnSubir.textContent = '⬆ Subir'; }
+
+btnSubir.addEventListener('click', ()=>{
+  if(GOOGLE_CLIENT_ID.startsWith('TU_CLIENT_ID')){
+    alert('Falta configurar GOOGLE_CLIENT_ID en el código antes de poder subir a Drive. Revisa los comentarios en el archivo.');
+    return;
+  }
+  btnSubir.disabled = true; btnSubir.textContent = 'Conectando...';
+  if(accessToken){ generarYSubirPdf(); }
+  else{ tokenClient.requestAccessToken(); }
 });
-document.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('fileImport').click());
-document.getElementById('fileImport').addEventListener('change', e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev=>{
-    try{
-      const data = JSON.parse(ev.target.result);
-      Object.entries(data.campos||{}).forEach(([key,val])=>{
-        const el = document.getElementById(key) || document.querySelector(`[data-field="${key}"]`);
-        if(el){ el.value = val; if(el.classList.contains('bmr')) el.dispatchEvent(new Event('change')); }
-      });
-      const allBoxes = document.querySelectorAll('[data-photo-slot], .photo-thumb-cell .photo-box');
-      (data.fotos||[]).forEach(f=>{
-        const box = allBoxes[f.index];
-        if(box){
-          box.classList.add('filled');
-          box.innerHTML = `<img src="${f.src}" alt="Foto adjunta"><button type="button" class="remove-btn no-print">Quitar</button>`;
-          box.querySelector('.remove-btn').addEventListener('click', ()=>{ box.classList.remove('filled'); buildPhotoBox(box); });
-        }
-      });
-      alert('Datos importados correctamente.');
-    }catch(err){ alert('El archivo no es un JSON válido de este informe.'); }
-  };
-  reader.readAsText(file);
-});
+
+async function generarYSubirPdf(){
+  btnSubir.textContent = 'Generando PDF...';
+  try{
+    const { jsPDF } = window.jspdf;
+    const contenido = document.querySelector('main');
+    const canvas = await html2canvas(contenido, { scale: 2, backgroundColor: '#0d1712', useCORS: true });
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const fecha = document.getElementById('fecha').value || new Date().toISOString().slice(0,10);
+    const nombreArchivo = `informe-mantenimiento-${fecha}.pdf`;
+    const pdfBlob = pdf.output('blob');
+
+    btnSubir.textContent = 'Subiendo a Drive...';
+    await subirBlobADrive(pdfBlob, nombreArchivo);
+    alert('PDF subido correctamente a la carpeta de Drive.');
+  }catch(err){
+    console.error(err);
+    alert('Ocurrió un error generando o subiendo el PDF. Revisa la consola para más detalle.');
+  }finally{
+    resetBtnSubir();
+  }
+}
+
+async function subirBlobADrive(blob, nombreArchivo){
+  const metadata = { name: nombreArchivo, parents: [DRIVE_FOLDER_ID] };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', blob);
+
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + accessToken },
+    body: form
+  });
+  if(!res.ok){
+    const errText = await res.text();
+    throw new Error('Error de Drive API: ' + errText);
+  }
+  return res.json();
+}
 </script>
 </body>
 </html>
