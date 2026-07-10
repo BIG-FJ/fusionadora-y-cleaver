@@ -362,7 +362,6 @@ footer{max-width:980px; margin:10px auto 30px; padding:0 20px; color:var(--text-
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 /* ---------- Utilidades de foto ---------- */
 function buildPhotoBox(container, label){
@@ -470,50 +469,29 @@ document.getElementById('btnAddTecnico').addEventListener('click', addTecnico);
 addTecnico(); addTecnico(); addTecnico();
 
 /* =========================================================
-   SUBIR A DRIVE (genera PDF del informe y lo sube a la carpeta)
+   SUBIR A DRIVE (genera PDF y lo envía a tu Apps Script)
    ---------------------------------------------------------
-   CONFIGURACIÓN REQUERIDA ANTES DE USAR (ver README):
-   1) Crear un OAuth Client ID de tipo "Web application" en
-      Google Cloud Console y pegarlo en GOOGLE_CLIENT_ID.
-   2) Agregar la URL donde vive esta página (ej. tu dominio
-      de GitHub Pages) como "Authorized JavaScript origin".
-   3) Habilitar la API de Google Drive en ese mismo proyecto.
+   CONFIGURACIÓN REQUERIDA (una sola vez, ver instrucciones
+   que te compartí junto con el archivo Codigo.gs):
+   1) Crea el proyecto de Apps Script con el código adjunto.
+   2) Despliégalo como "Aplicación web" (Ejecutar como: yo).
+   3) Pega aquí la URL /exec que te entrega el despliegue.
    ========================================================= */
-const GOOGLE_CLIENT_ID = 'TU_CLIENT_ID.apps.googleusercontent.com'; // <-- reemplazar
-const DRIVE_FOLDER_ID  = '16w5IZOB8wuhzJhPEQwPieXDuGV3BtweE';        // carpeta de Drive proporcionada
-const DRIVE_SCOPE      = 'https://www.googleapis.com/auth/drive.file';
-
-let accessToken = null;
-let tokenClient = null;
-
-function initGoogleAuth(){
-  if(typeof google === 'undefined' || !google.accounts) { return; }
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: DRIVE_SCOPE,
-    callback: (resp)=>{
-      if(resp && resp.access_token){ accessToken = resp.access_token; generarYSubirPdf(); }
-      else{ resetBtnSubir(); alert('No se pudo autenticar con Google.'); }
-    }
-  });
-}
-window.addEventListener('load', initGoogleAuth);
+const APPS_SCRIPT_URL = 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT/exec'; // <-- reemplazar
 
 const btnSubir = document.getElementById('btnSubir');
 function resetBtnSubir(){ btnSubir.disabled = false; btnSubir.textContent = '⬆ Subir'; }
 
 btnSubir.addEventListener('click', ()=>{
-  if(GOOGLE_CLIENT_ID.startsWith('TU_CLIENT_ID')){
-    alert('Falta configurar GOOGLE_CLIENT_ID en el código antes de poder subir a Drive. Revisa los comentarios en el archivo.');
+  if(APPS_SCRIPT_URL.includes('PEGA_AQUI_TU_URL')){
+    alert('Falta pegar la URL de tu Apps Script (APPS_SCRIPT_URL) en el código antes de poder subir a Drive.');
     return;
   }
-  btnSubir.disabled = true; btnSubir.textContent = 'Conectando...';
-  if(accessToken){ generarYSubirPdf(); }
-  else{ tokenClient.requestAccessToken(); }
+  btnSubir.disabled = true; btnSubir.textContent = 'Generando PDF...';
+  generarYSubirPdf();
 });
 
 async function generarYSubirPdf(){
-  btnSubir.textContent = 'Generando PDF...';
   try{
     const { jsPDF } = window.jspdf;
     const contenido = document.querySelector('main');
@@ -538,11 +516,11 @@ async function generarYSubirPdf(){
 
     const fecha = document.getElementById('fecha').value || new Date().toISOString().slice(0,10);
     const nombreArchivo = `informe-mantenimiento-${fecha}.pdf`;
-    const pdfBlob = pdf.output('blob');
+    const pdfBase64 = pdf.output('datauristring').split(',')[1];
 
     btnSubir.textContent = 'Subiendo a Drive...';
-    await subirBlobADrive(pdfBlob, nombreArchivo);
-    alert('PDF subido correctamente a la carpeta de Drive.');
+    await subirBase64ADrive(pdfBase64, nombreArchivo);
+    alert('PDF subido correctamente a tu carpeta de Drive.');
   }catch(err){
     console.error(err);
     alert('Ocurrió un error generando o subiendo el PDF. Revisa la consola para más detalle.');
@@ -551,22 +529,15 @@ async function generarYSubirPdf(){
   }
 }
 
-async function subirBlobADrive(blob, nombreArchivo){
-  const metadata = { name: nombreArchivo, parents: [DRIVE_FOLDER_ID] };
-  const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-  form.append('file', blob);
-
-  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+async function subirBase64ADrive(pdfBase64, nombreArchivo){
+  const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + accessToken },
-    body: form
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita el preflight CORS con Apps Script
+    body: JSON.stringify({ filename: nombreArchivo, pdfBase64 })
   });
-  if(!res.ok){
-    const errText = await res.text();
-    throw new Error('Error de Drive API: ' + errText);
-  }
-  return res.json();
+  const data = await res.json();
+  if(!data.ok){ throw new Error(data.error || 'Respuesta inválida del Apps Script.'); }
+  return data;
 }
 </script>
 </body>
