@@ -1,53 +1,500 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentación: Fusionadora y Cleaver</title>
-    <style>
-        /* Estilos básicos para que se vea limpio y profesional */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; }
-        header { background: #24292e; color: #fff; padding: 20px; border-radius: 6px; text-align: center; margin-bottom: 30px; }
-        header h1 { margin: 0; font-size: 24px; }
-        header p { margin: 5px 0 0; color: #bababa; }
-        .nota-card { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .nota-card h2 { margin-top: 0; font-size: 20px; }
-        .nota-card h2 a { color: #0366d6; text-decoration: none; }
-        .nota-card h2 a:hover { text-decoration: underline; }
-        .tag { display: inline-block; background: #eaedf0; color: #444; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; }
-        footer { text-align: center; margin-top: 5px; color: #6a737d; font-size: 12px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe Técnico · Fusionadora &amp; Cleaver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d1712;
+  --surface:#152019;
+  --surface-2:#1b2a20;
+  --surface-3:#213228;
+  --border:#2b3d31;
+  --text:#eaf2ea;
+  --text-dim:#93a89b;
+  --accent:#4a8f3c;
+  --accent-bright:#8fd15f;
+  --good:#3f9142;
+  --good-bg:#1c3120;
+  --warn:#d9a531;
+  --warn-bg:#332b16;
+  --bad:#d9534f;
+  --bad-bg:#331b1a;
+  --mono:'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --sans:'Inter', system-ui, -apple-system, sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--sans); line-height:1.5; padding-bottom:60px;
+}
+::selection{background:var(--accent); color:#08120b;}
+
+/* ---------- Divisor firma: escala de ángulo de corte ---------- */
+.tick-divider{
+  height:14px; margin:10px 0 18px;
+  background-image: repeating-linear-gradient(100deg, var(--border) 0 1px, transparent 1px 14px);
+  background-size:100% 14px; background-position:left bottom;
+  position:relative; opacity:.8;
+}
+.tick-divider::after{
+  content:"0.00° — 0.50°"; position:absolute; right:0; top:-16px;
+  font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:.03em;
+}
+
+/* ---------- Header ---------- */
+header.topbar{
+  position:sticky; top:0; z-index:50;
+  background:rgba(13,23,18,.94); backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--border);
+  padding:14px 20px;
+}
+.topbar-inner{max-width:980px; margin:0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:14px; justify-content:space-between;}
+.brand{display:flex; flex-direction:column; gap:2px;}
+.brand .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--accent-bright); text-transform:uppercase;}
+.brand h1{font-size:17px; margin:0; font-weight:700;}
+nav.pills{display:flex; gap:6px; flex-wrap:wrap;}
+nav.pills a{
+  font-family:var(--mono); font-size:11px; color:var(--text-dim); text-decoration:none;
+  border:1px solid var(--border); padding:5px 9px; border-radius:20px; transition:.15s;
+}
+nav.pills a:hover, nav.pills a:focus-visible{color:var(--bg); background:var(--accent-bright); border-color:var(--accent-bright);}
+.actions{display:flex; gap:8px; flex-wrap:wrap;}
+button, .btn{
+  font-family:var(--sans); font-weight:600; font-size:12.5px; cursor:pointer;
+  border-radius:8px; padding:8px 14px; border:1px solid var(--border);
+  background:var(--surface-2); color:var(--text); transition:.15s;
+}
+button:hover{border-color:var(--accent); color:var(--accent-bright);}
+button.primary{background:var(--accent); color:#08120b; border-color:var(--accent);}
+button.primary:hover{background:var(--accent-bright); color:#08120b;}
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--accent-bright); outline-offset:2px;
+}
+
+/* ---------- Layout ---------- */
+main{max-width:980px; margin:26px auto; padding:0 20px; display:flex; flex-direction:column; gap:40px;}
+section.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:22px clamp(16px,3vw,30px); scroll-margin-top:86px;
+}
+.section-head{display:flex; align-items:baseline; gap:12px; margin-bottom:2px;}
+.section-num{font-family:var(--mono); color:var(--accent-bright); font-size:13px;}
+.section-head h2{font-size:18px; margin:0;}
+.section-sub{color:var(--text-dim); font-size:12.5px; margin:4px 0 0;}
+
+/* ---------- Form grid ---------- */
+.field-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 18px; margin-top:16px;}
+@media(max-width:640px){.field-grid{grid-template-columns:1fr;}}
+.field{display:flex; flex-direction:column; gap:5px;}
+.field.wide{grid-column:1/-1;}
+label{font-size:12px; font-weight:600; color:var(--text-dim);}
+input[type=text], input[type=date], input[type=number], select, textarea{
+  background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+  border-radius:8px; padding:9px 10px; font-family:var(--sans); font-size:13.5px; width:100%;
+}
+textarea{min-height:90px; resize:vertical;}
+select{appearance:none; background-image:linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%); background-position:calc(100% - 16px) center, calc(100% - 11px) center; background-size:5px 5px; background-repeat:no-repeat;}
+.hint{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); opacity:.8;}
+
+/* select estado B/R/M coloreado */
+select.bmr[data-val="B"]{background-color:var(--good-bg); border-color:var(--good); color:var(--good);}
+select.bmr[data-val="R"]{background-color:var(--warn-bg); border-color:var(--warn); color:var(--warn);}
+select.bmr[data-val="M"]{background-color:var(--bad-bg); border-color:var(--bad); color:var(--bad);}
+
+/* ---------- Tabla checklist ---------- */
+.table-wrap{overflow-x:auto; margin-top:16px; border:1px solid var(--border); border-radius:10px;}
+table{width:100%; border-collapse:collapse; min-width:640px;}
+th, td{padding:10px 12px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle;}
+th{background:var(--surface-3); font-family:var(--mono); font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-dim); text-align:left;}
+tr:last-child td{border-bottom:none;}
+td.comp-name{font-weight:600; min-width:180px;}
+td select, td input[type=text]{min-width:110px;}
+
+/* ---------- Foto ---------- */
+.photo-box{
+  border:1.5px dashed var(--border); border-radius:10px; background:var(--surface-2);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  padding:16px; text-align:center; min-height:140px; position:relative; overflow:hidden;
+}
+.photo-box.filled{border-style:solid; padding:0;}
+.photo-box img{width:100%; height:100%; object-fit:cover; display:block; min-height:140px;}
+.photo-box .ph-label{font-size:11.5px; color:var(--text-dim); font-family:var(--mono);}
+.photo-box input[type=file]{position:absolute; inset:0; opacity:0; cursor:pointer;}
+.photo-box .remove-btn{
+  position:absolute; top:6px; right:6px; z-index:2; background:rgba(13,23,18,.75); color:#fff;
+  border:none; border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer;
+}
+.photo-thumb-cell{width:150px;}
+.photo-thumb-cell .photo-box{min-height:90px;}
+.photo-thumb-cell .photo-box img{min-height:90px;}
+.photo-block-title{font-size:12px; font-weight:700; color:var(--text-dim); margin:22px 0 8px; display:flex; align-items:center; gap:8px;}
+.photo-block-title::before{content:"◆"; color:var(--accent-bright); font-size:9px;}
+
+/* ---------- Firmas / personas ---------- */
+.people-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-top:12px;}
+.person-card{border:1px solid var(--border); border-radius:10px; padding:14px; background:var(--surface-2);}
+.person-card .photo-box{margin-top:8px; min-height:160px;}
+.add-person{align-self:start; margin-top:12px;}
+
+footer{max-width:980px; margin:10px auto 30px; padding:0 20px; color:var(--text-dim); font-family:var(--mono); font-size:11px; text-align:center;}
+
+/* ---------- Impresión ---------- */
+@media print{
+  header.topbar, .no-print{display:none !important;}
+  body{background:#fff; color:#111;}
+  section.card{border:1px solid #ccc; break-inside:avoid; background:#fff;}
+  input, select, textarea{border:1px solid #999 !important; color:#111 !important; background:#fff !important;}
+  .photo-box{border:1px solid #999;}
+  a{color:#111;}
+}
+</style>
 </head>
 <body>
 
-    <header>
-        <!-- 1. TÍTULO PRINCIPAL -->
-        <h1>FUSIONADORA</h1>
-        <!-- 2. SUBTÍTULO -->
-        <p>Revisión y Mantenimiento</p>
-    </header>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="eyebrow">Registro de campo · Fibra óptica</span>
+      <h1>Informe de Mantenimiento — Fusionadora &amp; Cleaver</h1>
+    </div>
+    <nav class="pills" aria-label="Ir a sección">
+      <a href="#s1">01 General</a>
+      <a href="#s2">02 Fusionadora</a>
+      <a href="#s3">03 Cleaver</a>
+      <a href="#s3b">03B Porta fibra</a>
+      <a href="#s4">04 Accesorios</a>
+      <a href="#s5">05 Cierre</a>
+    </nav>
+    <div class="actions no-print">
+      <button id="btnExport">⬇ Exportar .json</button>
+      <button id="btnImport">⬆ Importar .json</button>
+      <input type="file" id="fileImport" accept="application/json" hidden>
+      <button class="primary" id="btnPrint">🖨 Imprimir / PDF</button>
+    </div>
+  </div>
+</header>
 
-    <main>
-        <!-- PRIMERA NOTA (Copia este bloque si quieres añadir más notas) -->
-        <article class="nota-card">
-            <span class="tag">Manual</span>
-            <!-- 3. ENLACE A LA NOTA -->
-            <h2><a href="notas/uso-fusionadora.html">Uso Correcto de la Fusionadora de Fibra</a></h2>
-            <!-- 4. DESCRIPCIÓN DE LA NOTA -->
-            <p>Guía paso a paso sobre cómo encender, alinear las fibras, realizar la fusión y proteger el canutillo.</p>
-        </article>
+<main>
 
-        <!-- SEGUNDA NOTA -->
-        <article class="nota-card">
-            <span class="tag">Mantenimiento</span>
-            <h2><a href="notas/mantenimiento-cleaver.html">Calibración y Limpieza del Cleaver</a></h2>
-            <p>Procedimiento detallado para rotar la cuchilla del Cleaver (cortadora de precisión) y limpiar los residuos.</p>
-        </article>
-    </main>
+  <!-- SECCIÓN 1 -->
+  <section class="card" id="s1">
+    <div class="section-head"><span class="section-num">01</span><h2>Información General</h2></div>
+    <p class="section-sub">Identificación del equipo, técnico y dictamen final de la revisión.</p>
+    <div class="tick-divider"></div>
+    <div class="field-grid">
+      <div class="field"><label for="fecha">Fecha de revisión</label><input type="date" id="fecha"></div>
+      <div class="field"><label for="tecnico">Técnico responsable</label><input type="text" id="tecnico" placeholder="Nombre del encargado"></div>
+      <div class="field"><label for="grupo">Grupo técnico / cuadrilla</label><input type="text" id="grupo" placeholder="Código o nombre del grupo"></div>
+      <div class="field"><label for="marcaF">Marca de la fusionadora</label><input type="text" id="marcaF" placeholder="Ej. Fujikura, Inno, Sumitomo"></div>
+      <div class="field"><label for="modeloF">Modelo</label><input type="text" id="modeloF" placeholder="Ej. 90S, View 7"></div>
+      <div class="field"><label for="snF">Número de serie (S/N)</label><input type="text" id="snF" placeholder="Código único del equipo"></div>
+      <div class="field"><label for="arcos">Contador de arcos</label><input type="number" id="arcos" placeholder="Número de fusiones"></div>
+      <div class="field">
+        <label for="dictamen">Dictamen final</label>
+        <select id="dictamen">
+          <option value="">— Seleccionar —</option>
+          <option value="APROBADO">APROBADO</option>
+          <option value="RECHAZADO">RECHAZADO</option>
+          <option value="EN REPARACIÓN">EN REPARACIÓN</option>
+        </select>
+      </div>
+    </div>
+    <p class="photo-block-title">Registro fotográfico — Placa / identificación del equipo</p>
+    <div class="photo-single" data-photo-slot></div>
+  </section>
 
-    <footer>
-        <p>&copy; 2026 - Repositorio Fusionadora y Cleaver</p>
-    </footer>
+  <!-- SECCIÓN 2 -->
+  <section class="card" id="s2">
+    <div class="section-head"><span class="section-num">02</span><h2>Revisión y Mantenimiento de la Fusionadora</h2></div>
+    <p class="section-sub">Estado físico y operativo del equipo principal. B = Bueno · R = Regular · M = Malo.</p>
+    <div class="tick-divider"></div>
+    <div class="table-wrap">
+      <table id="tablaFusionadora">
+        <thead><tr><th>Componente</th><th>Estado</th><th>¿Mantenimiento?</th><th>Observaciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="photo-block-title">Registro fotográfico de respaldo — Fusionadora</p>
+    <div class="photo-single" data-photo-slot></div>
+  </section>
 
+  <!-- SECCIÓN 3 -->
+  <section class="card" id="s3">
+    <div class="section-head"><span class="section-num">03</span><h2>Revisión Detallada del Cleaver</h2></div>
+    <p class="section-sub">Cortadora de precisión: mediciones, serie y calidad de corte.</p>
+    <div class="tick-divider"></div>
+    <div class="field-grid">
+      <div class="field"><label for="marcaC">Marca del cleaver</label><input type="text" id="marcaC" placeholder="Ej. Fujikura, Inno"></div>
+      <div class="field"><label for="modeloC">Modelo</label><input type="text" id="modeloC" placeholder="Ej. CT-50, V7"></div>
+      <div class="field"><label for="snC">Número de serie (S/N)</label><input type="text" id="snC" placeholder="Código único"></div>
+      <div class="field"><label for="cortes">Contador de cortes</label><input type="number" id="cortes"></div>
+      <div class="field"><label for="posCuchilla">Posición actual de la cuchilla</label><input type="text" id="posCuchilla" placeholder="Ej. Posición 1 a 16"></div>
+      <div class="field">
+        <label for="alturaCuchilla">Altura de la cuchilla</label>
+        <select id="alturaCuchilla"><option value="">— Seleccionar —</option><option>OK</option><option>Alto</option><option>Bajo</option></select>
+      </div>
+      <div class="field">
+        <label for="pads">Almohadillas de goma (pads)</label>
+        <select id="pads"><option value="">— Seleccionar —</option><option>Bueno</option><option>Desgastado</option></select>
+      </div>
+      <div class="field">
+        <label for="limpiezaAlcohol">¿Limpio con alcohol?</label>
+        <select id="limpiezaAlcohol"><option value="">— Seleccionar —</option><option>Sí</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="mecanismo">Mecanismo de desplazamiento</label>
+        <select id="mecanismo"><option value="">— Seleccionar —</option><option>Suave</option><option>Atascado</option></select>
+      </div>
+      <div class="field">
+        <label for="lubricacion">¿Requiere lubricación?</label>
+        <select id="lubricacion"><option value="">— Seleccionar —</option><option>Sí</option><option>No</option></select>
+      </div>
+      <div class="field"><label for="anguloCorte">Calidad del corte (ángulo)</label><input type="text" id="anguloCorte" placeholder="Ej. < 0.5° / OK / Error"></div>
+      <div class="field">
+        <label for="pruebaFusionadora">Prueba realizada en la fusionadora</label>
+        <select id="pruebaFusionadora"><option value="">— Seleccionar —</option><option>Sí</option><option>No</option></select>
+      </div>
+    </div>
+    <p class="photo-block-title">Registro fotográfico de respaldo — Cleaver</p>
+    <div class="photo-single" data-photo-slot></div>
+  </section>
+
+  <!-- SECCIÓN 3B -->
+  <section class="card" id="s3b">
+    <div class="section-head"><span class="section-num">03B</span><h2>Porta Fibra del Cleaver</h2></div>
+    <p class="section-sub">Soporte de fibra óptica montado en el cleaver: sujeta y alinea la fibra durante el corte; su desgaste afecta directamente la calidad del corte.</p>
+    <div class="tick-divider"></div>
+    <div class="field-grid">
+      <div class="field"><label for="tipoPortaFibra">Tipo de porta fibra</label><input type="text" id="tipoPortaFibra" placeholder="Ej. 250um / 900um / Ribbon"></div>
+      <div class="field">
+        <label for="estadoPortaFibra">Estado general</label>
+        <select id="estadoPortaFibra" class="bmr"><option value="">— Seleccionar —</option><option value="B">B — Bueno</option><option value="R">R — Regular</option><option value="M">M — Malo</option></select>
+      </div>
+      <div class="field">
+        <label for="sujecionPortaFibra">¿Cierra y sujeta correctamente la fibra?</label>
+        <select id="sujecionPortaFibra"><option value="">— Seleccionar —</option><option>Sí</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="desgastePortaFibra">¿Presenta desgaste, holgura o juego?</label>
+        <select id="desgastePortaFibra"><option value="">— Seleccionar —</option><option>Sí</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="limpiezaPortaFibra">¿Está limpio (sin residuos o polvo)?</label>
+        <select id="limpiezaPortaFibra"><option value="">— Seleccionar —</option><option>Sí</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="reemplazoPortaFibra">¿Requiere reemplazo?</label>
+        <select id="reemplazoPortaFibra"><option value="">— Seleccionar —</option><option>Sí</option><option>No</option></select>
+      </div>
+    </div>
+    <p class="photo-block-title">Registro fotográfico de respaldo — Porta fibra</p>
+    <div class="photo-single" data-photo-slot></div>
+  </section>
+
+  <!-- SECCIÓN 4 -->
+  <section class="card" id="s4">
+    <div class="section-head"><span class="section-num">04</span><h2>Inventario y Verificación de Accesorios</h2></div>
+    <p class="section-sub">Cada accesorio incluye su propio registro fotográfico.</p>
+    <div class="tick-divider"></div>
+    <div class="table-wrap">
+      <table id="tablaAccesorios">
+        <thead><tr><th>Accesorio</th><th>¿Cuenta con él?</th><th>Modelo / medida / serie</th><th>Estado</th><th>Observaciones</th><th>Foto</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECCIÓN 5 -->
+  <section class="card" id="s5">
+    <div class="section-head"><span class="section-num">05</span><h2>Conclusiones y Evidencia Fotográfica</h2></div>
+    <p class="section-sub">Recomendaciones técnicas, supervisor y personal presente en la revisión.</p>
+    <div class="tick-divider"></div>
+    <div class="field wide">
+      <label for="recomendaciones">Recomendaciones técnicas / próximo mantenimiento</label>
+      <textarea id="recomendaciones" placeholder="Observaciones libres del técnico..."></textarea>
+    </div>
+
+    <p class="photo-block-title">Supervisor de la revisión</p>
+    <div class="people-grid">
+      <div class="person-card">
+        <label for="supervisorNombre">Nombre del supervisor</label>
+        <input type="text" id="supervisorNombre" placeholder="Nombre completo">
+        <div class="photo-box" data-photo-slot style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <p class="photo-block-title">Técnicos que entregan / presentes en la revisión</p>
+    <div class="people-grid" id="tecnicosGrid"></div>
+    <button class="add-person no-print" id="btnAddTecnico">+ Añadir técnico</button>
+  </section>
+
+</main>
+
+<footer>Informe de campo · Uso sin conexión · Los datos permanecen en tu navegador hasta exportarlos</footer>
+
+<script>
+/* ---------- Utilidades de foto ---------- */
+function buildPhotoBox(container, label){
+  container.classList.add('photo-box');
+  container.innerHTML = `
+    <span class="ph-label">${label || 'Insertar foto aquí'}</span>
+    <input type="file" accept="image/*" capture="environment">
+  `;
+  const input = container.querySelector('input[type=file]');
+  input.addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      container.classList.add('filled');
+      container.innerHTML = `<img src="${ev.target.result}" alt="Foto adjunta">
+        <button type="button" class="remove-btn no-print">Quitar</button>`;
+      container.querySelector('.remove-btn').addEventListener('click', ()=>{
+        container.classList.remove('filled');
+        buildPhotoBox(container, label);
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+document.querySelectorAll('[data-photo-slot]').forEach(el=>buildPhotoBox(el));
+
+/* ---------- Estado B/R/M coloreado ---------- */
+function wireBmr(select){
+  select.classList.add('bmr');
+  const paint = ()=> select.dataset.val = select.value;
+  select.addEventListener('change', paint);
+  paint();
+}
+
+/* ---------- Sección 2: checklist Fusionadora ---------- */
+const componentesFusionadora = [
+  "Carcasa y gomas de impacto",
+  "Pantalla LCD / táctil",
+  "Ranuras en V (V-grooves)",
+  "Lentes de las cámaras (X/Y)",
+  "Electrodos (desgaste/limpieza)",
+  "Sujetadores de fibra (windproof)",
+  "Horno de termocontracción",
+  "Batería (porcentaje de vida útil)",
+  "Prueba de arco (arc calibration)"
+];
+const tbodyF = document.querySelector('#tablaFusionadora tbody');
+componentesFusionadora.forEach((nombre, i)=>{
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="comp-name">${nombre}</td>
+    <td><select class="bmr" data-field="estado-${i}"><option value="">—</option><option value="B">B</option><option value="R">R</option><option value="M">M</option></select></td>
+    <td><select data-field="mant-${i}"><option value="">—</option><option>Sí</option><option>No</option></select></td>
+    <td><input type="text" data-field="obs-${i}" placeholder="Detalles / observaciones"></td>
+  `;
+  tbodyF.appendChild(tr);
+  wireBmr(tr.querySelector('select.bmr'));
+});
+
+/* ---------- Sección 4: Accesorios ---------- */
+const accesorios = [
+  ["Peladora de 7 funciones","", "¿Tiene buen filo?"],
+  ["Holders (sujetadores)","Medida: ej. 250um / 900um", "¿Están limpios y completos?"],
+  ["Brocha de limpieza","", "¿Cerdas en buen estado?"],
+  ["Adaptador de carga (cargador)","Voltaje: ej. 13.5V", "¿Cable y conector estables?"],
+  ["Caja de transporte (maletín)","", "¿Broches y bisagras cierran?"],
+  ["Cinturón de la caja","", "¿Hebillas y tela seguras?"]
+];
+const tbodyA = document.querySelector('#tablaAccesorios tbody');
+accesorios.forEach(([nombre, hint, obsHint], i)=>{
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="comp-name">${nombre}</td>
+    <td><select data-field="cuenta-${i}"><option value="">—</option><option>Sí</option><option>No</option></select></td>
+    <td><input type="text" data-field="modelo-${i}" placeholder="${hint || 'Modelo / medida / serie'}"></td>
+    <td><select class="bmr" data-field="estadoAcc-${i}"><option value="">—</option><option value="B">B</option><option value="R">R</option><option value="M">M</option></select></td>
+    <td><input type="text" data-field="obsAcc-${i}" placeholder="${obsHint}"></td>
+    <td class="photo-thumb-cell"><div class="photo-box" data-photo-slot></div></td>
+  `;
+  tbodyA.appendChild(tr);
+  wireBmr(tr.querySelector('select.bmr'));
+  buildPhotoBox(tr.querySelector('.photo-thumb-cell .photo-box'));
+});
+
+/* ---------- Sección 3B: color del estado general ---------- */
+wireBmr(document.getElementById('estadoPortaFibra'));
+
+/* ---------- Sección 5: técnicos dinámicos ---------- */
+const tecnicosGrid = document.getElementById('tecnicosGrid');
+let tecnicoCount = 0;
+function addTecnico(){
+  tecnicoCount++;
+  const card = document.createElement('div');
+  card.className = 'person-card';
+  card.innerHTML = `
+    <label>Nombre del técnico ${tecnicoCount}</label>
+    <input type="text" placeholder="Nombre completo" data-field="tecnicoNombre-${tecnicoCount}">
+    <div class="photo-box" data-photo-slot style="margin-top:10px;"></div>
+  `;
+  tecnicosGrid.appendChild(card);
+  buildPhotoBox(card.querySelector('.photo-box'));
+}
+document.getElementById('btnAddTecnico').addEventListener('click', addTecnico);
+addTecnico(); addTecnico(); addTecnico();
+
+/* ---------- Imprimir ---------- */
+document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
+
+/* ---------- Exportar / Importar JSON (incluye fotos en base64) ---------- */
+function collectData(){
+  const data = { campos:{}, fotos:[] };
+  document.querySelectorAll('main input[type=text], main input[type=date], main input[type=number], main select, main textarea').forEach(el=>{
+    const key = el.id || el.dataset.field;
+    if(key) data.campos[key] = el.value;
+  });
+  document.querySelectorAll('[data-photo-slot], .photo-thumb-cell .photo-box').forEach((box, i)=>{
+    const img = box.querySelector('img');
+    box.dataset.photoIndex = i;
+    if(img) data.fotos.push({index:i, src:img.src}); 
+  });
+  return data;
+}
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const data = collectData();
+  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const fecha = document.getElementById('fecha').value || 'sin-fecha';
+  a.href = url; a.download = `informe-mantenimiento-${fecha}.json`;
+  a.click(); URL.revokeObjectURL(url);
+});
+document.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('fileImport').click());
+document.getElementById('fileImport').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      Object.entries(data.campos||{}).forEach(([key,val])=>{
+        const el = document.getElementById(key) || document.querySelector(`[data-field="${key}"]`);
+        if(el){ el.value = val; if(el.classList.contains('bmr')) el.dispatchEvent(new Event('change')); }
+      });
+      const allBoxes = document.querySelectorAll('[data-photo-slot], .photo-thumb-cell .photo-box');
+      (data.fotos||[]).forEach(f=>{
+        const box = allBoxes[f.index];
+        if(box){
+          box.classList.add('filled');
+          box.innerHTML = `<img src="${f.src}" alt="Foto adjunta"><button type="button" class="remove-btn no-print">Quitar</button>`;
+          box.querySelector('.remove-btn').addEventListener('click', ()=>{ box.classList.remove('filled'); buildPhotoBox(box); });
+        }
+      });
+      alert('Datos importados correctamente.');
+    }catch(err){ alert('El archivo no es un JSON válido de este informe.'); }
+  };
+  reader.readAsText(file);
+});
+</script>
 </body>
 </html>
