@@ -64,6 +64,7 @@ nav.pills a{
 }
 nav.pills a:hover, nav.pills a:focus-visible{color:var(--bg); background:var(--accent-bright); border-color:var(--accent-bright);}
 .actions{display:flex; gap:8px; flex-wrap:wrap;}
+.autosave-status{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); align-self:center; white-space:nowrap;}
 button, .btn{
   font-family:var(--sans); font-weight:600; font-size:12.5px; cursor:pointer;
   border-radius:8px; padding:8px 14px; border:1px solid var(--border);
@@ -114,6 +115,10 @@ th{background:var(--surface-3); font-family:var(--mono); font-size:10.5px; lette
 tr:last-child td{border-bottom:none;}
 td.comp-name{font-weight:600; min-width:180px;}
 td select, td input[type=text]{min-width:110px;}
+textarea.obs-cell{
+  min-height:38px; max-height:none; height:auto; resize:none;
+  overflow:hidden; line-height:1.35; font-family:var(--sans); font-size:13px;
+}
 
 /* ---------- Foto ---------- */
 .photo-box{
@@ -197,6 +202,8 @@ footer{max-width:980px; margin:10px auto 30px; padding:0 20px; color:var(--text-
       <a href="#s5">05 Cierre</a>
     </nav>
     <div class="actions no-print">
+      <span id="autosaveStatus" class="autosave-status"></span>
+      <button id="btnBorrarGuardado" title="Borra los datos guardados en este dispositivo">🗑 Borrar guardado</button>
       <button class="primary" id="btnSubir">⬆ Subir</button>
     </div>
   </div>
@@ -382,7 +389,9 @@ function buildPhotoBox(container, label){
       container.querySelector('.remove-btn').addEventListener('click', ()=>{
         container.classList.remove('filled');
         buildPhotoBox(container, label);
+        if(typeof guardarEnDispositivo === 'function') guardarEnDispositivo();
       });
+      if(typeof guardarEnDispositivo === 'function') guardarEnDispositivo();
     };
     reader.readAsDataURL(file);
   });
@@ -390,6 +399,16 @@ function buildPhotoBox(container, label){
 document.querySelectorAll('[data-photo-slot]').forEach(el=>buildPhotoBox(el));
 
 /* ---------- Estado B/R/M coloreado ---------- */
+/* ---------- Auto-crecimiento de observaciones (evita texto recortado) ---------- */
+function autoGrow(el){
+  el.style.height = 'auto';
+  el.style.height = (el.scrollHeight + 2) + 'px';
+}
+function wireAutoGrow(textarea){
+  autoGrow(textarea);
+  textarea.addEventListener('input', ()=> autoGrow(textarea));
+}
+
 function wireBmr(select){
   select.classList.add('bmr');
   const paint = ()=> select.dataset.val = select.value;
@@ -416,10 +435,11 @@ componentesFusionadora.forEach((nombre, i)=>{
     <td class="comp-name">${nombre}</td>
     <td><select class="bmr" data-field="estado-${i}"><option value="">—</option><option value="B">B</option><option value="R">R</option><option value="M">M</option></select></td>
     <td><select data-field="mant-${i}"><option value="">—</option><option>Sí</option><option>No</option></select></td>
-    <td><input type="text" data-field="obs-${i}" placeholder="Detalles / observaciones"></td>
+    <td><textarea class="obs-cell" data-field="obs-${i}" placeholder="Detalles / observaciones" rows="1"></textarea></td>
   `;
   tbodyF.appendChild(tr);
   wireBmr(tr.querySelector('select.bmr'));
+  wireAutoGrow(tr.querySelector('textarea.obs-cell'));
 });
 
 /* ---------- Sección 4: Accesorios ---------- */
@@ -439,11 +459,12 @@ accesorios.forEach(([nombre, hint, obsHint], i)=>{
     <td><select data-field="cuenta-${i}"><option value="">—</option><option>Sí</option><option>No</option></select></td>
     <td><input type="text" data-field="modelo-${i}" placeholder="${hint || 'Modelo / medida / serie'}"></td>
     <td><select class="bmr" data-field="estadoAcc-${i}"><option value="">—</option><option value="B">B</option><option value="R">R</option><option value="M">M</option></select></td>
-    <td><input type="text" data-field="obsAcc-${i}" placeholder="${obsHint}"></td>
+    <td><textarea class="obs-cell" data-field="obsAcc-${i}" placeholder="${obsHint}" rows="1"></textarea></td>
     <td class="photo-thumb-cell"><div class="photo-box" data-photo-slot></div></td>
   `;
   tbodyA.appendChild(tr);
   wireBmr(tr.querySelector('select.bmr'));
+  wireAutoGrow(tr.querySelector('textarea.obs-cell'));
   buildPhotoBox(tr.querySelector('.photo-thumb-cell .photo-box'));
 });
 
@@ -469,6 +490,129 @@ document.getElementById('btnAddTecnico').addEventListener('click', addTecnico);
 addTecnico(); addTecnico(); addTecnico();
 
 /* =========================================================
+   AUTOGUARDADO LOCAL (localStorage)
+   ---------------------------------------------------------
+   Si se recarga la página, se pierde la señal, o se cierra el
+   navegador por accidente, los datos y fotos ya escritos se
+   recuperan solos desde el almacenamiento del propio dispositivo.
+   Nota: esto vive únicamente en este navegador/dispositivo — no
+   sustituye subir el informe a Drive cuando esté terminado.
+   ========================================================= */
+const AUTOSAVE_KEY = 'informe-mantenimiento-autosave-v1';
+const autosaveStatus = document.getElementById('autosaveStatus');
+
+function getAllCampoElementos(){
+  return Array.from(document.querySelectorAll(
+    'main input[type=text], main input[type=date], main input[type=number], main select, main textarea'
+  ));
+}
+function getAllFotoBoxes(){
+  return Array.from(document.querySelectorAll('[data-photo-slot], .photo-thumb-cell .photo-box'));
+}
+
+// Reduce el tamaño de una foto antes de guardarla localmente (el navegador
+// tiene un límite de espacio para esto, y varias fotos en alta resolución
+// lo agotan rápido).
+function comprimirImagen(dataUrl, maxDim, calidad){
+  return new Promise(resolve=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let { width, height } = img;
+      if(width > height && width > maxDim){ height *= maxDim / width; width = maxDim; }
+      else if(height > maxDim){ width *= maxDim / height; height = maxDim; }
+      const c = document.createElement('canvas');
+      c.width = width; c.height = height;
+      c.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(c.toDataURL('image/jpeg', calidad));
+    };
+    img.onerror = ()=> resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+async function guardarEnDispositivo(){
+  try{
+    const campos = {};
+    getAllCampoElementos().forEach(el=>{
+      const key = el.id || el.dataset.field;
+      if(key) campos[key] = el.value;
+    });
+
+    const fotoBoxes = getAllFotoBoxes();
+    const fotos = [];
+    for(let i=0; i<fotoBoxes.length; i++){
+      const img = fotoBoxes[i].querySelector('img');
+      if(img){
+        const comprimida = await comprimirImagen(img.src, 900, 0.6);
+        if(comprimida) fotos.push({ index: i, src: comprimida });
+      }
+    }
+
+    const payload = { campos, fotos, guardadoEn: new Date().toISOString() };
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
+    if(autosaveStatus) autosaveStatus.textContent = '✓ Guardado en este dispositivo · ' + new Date().toLocaleTimeString();
+  }catch(err){
+    console.warn('No se pudo autoguardar (posiblemente sin espacio disponible):', err);
+    if(autosaveStatus) autosaveStatus.textContent = '⚠ No se pudo autoguardar (revisa espacio del navegador)';
+  }
+}
+
+function restaurarDesdeDispositivo(){
+  const raw = localStorage.getItem(AUTOSAVE_KEY);
+  if(!raw) return;
+  try{
+    const data = JSON.parse(raw);
+    Object.entries(data.campos || {}).forEach(([key, val])=>{
+      const el = document.getElementById(key) || document.querySelector(`[data-field="${key}"]`);
+      if(!el) return;
+      el.value = val;
+      if(el.classList.contains('bmr')) el.dispatchEvent(new Event('change'));
+      if(el.classList.contains('obs-cell')) autoGrow(el);
+    });
+    const fotoBoxes = getAllFotoBoxes();
+    (data.fotos || []).forEach(f=>{
+      const box = fotoBoxes[f.index];
+      if(!box) return;
+      box.classList.add('filled');
+      box.innerHTML = `<img src="${f.src}" alt="Foto adjunta"><button type="button" class="remove-btn no-print">Quitar</button>`;
+      box.querySelector('.remove-btn').addEventListener('click', ()=>{
+        box.classList.remove('filled');
+        buildPhotoBox(box);
+        guardarEnDispositivo();
+      });
+    });
+    if(autosaveStatus && data.guardadoEn){
+      autosaveStatus.textContent = '↺ Datos restaurados (guardado ' + new Date(data.guardadoEn).toLocaleString() + ')';
+    }
+  }catch(err){
+    console.warn('No se pudo restaurar el autoguardado:', err);
+  }
+}
+
+// Guarda automáticamente al escribir/cambiar cualquier campo (con una
+// pequeña espera para no guardar en cada tecla).
+let autosaveTimer = null;
+document.querySelector('main').addEventListener('input', ()=>{
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(guardarEnDispositivo, 700);
+});
+document.querySelector('main').addEventListener('change', ()=>{
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(guardarEnDispositivo, 700);
+});
+// Nota: el guardado de fotos ya se dispara directamente desde buildPhotoBox
+// (justo cuando la imagen termina de cargar), no aquí.
+
+document.getElementById('btnBorrarGuardado').addEventListener('click', ()=>{
+  if(confirm('¿Borrar los datos guardados en este dispositivo? Esto no afecta lo que ya subiste a Drive.')){
+    localStorage.removeItem(AUTOSAVE_KEY);
+    if(autosaveStatus) autosaveStatus.textContent = 'Datos guardados eliminados.';
+  }
+});
+
+restaurarDesdeDispositivo();
+
+/* =========================================================
    SUBIR A DRIVE (genera PDF y lo envía a tu Apps Script)
    ---------------------------------------------------------
    CONFIGURACIÓN REQUERIDA (una sola vez, ver instrucciones
@@ -477,7 +621,7 @@ addTecnico(); addTecnico(); addTecnico();
    2) Despliégalo como "Aplicación web" (Ejecutar como: yo).
    3) Pega aquí la URL /exec que te entrega el despliegue.
    ========================================================= */
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMqrSX8TfwEbiMUWJHbkxFF3JdV3VPCUl0KE-Mdp72WIQCbeFTK330HkKwhAwgLicKhA/exec'; // <-- reemplazar
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMqrSX8TfwEbiMUWJHbkxFF3JdV3VPCUl0KE-Mdp72WIQCbeFTK330HkKwhAwgLicKhA/exec';
 
 const btnSubir = document.getElementById('btnSubir');
 function resetBtnSubir(){ btnSubir.disabled = false; btnSubir.textContent = '⬆ Subir'; }
@@ -494,29 +638,48 @@ btnSubir.addEventListener('click', ()=>{
 async function generarYSubirPdf(){
   try{
     const { jsPDF } = window.jspdf;
-    const contenido = document.querySelector('main');
-    let canvas;
-    try{
-      canvas = await html2canvas(contenido, { scale: 2, backgroundColor: '#0d1712', useCORS: true });
-    }catch(errCanvas){
-      throw new Error('Falló al capturar el contenido para el PDF (html2canvas): ' + errCanvas.message);
-    }
-    const pdf = new jsPDF('p', 'mm', 'a4');
+    const secciones = Array.from(document.querySelectorAll('main section.card'));
+    const pdf = new jsPDF('l', 'mm', 'a4'); // horizontal, más espacio para las tablas
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const margin = 6;
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
 
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while(heightLeft > 0){
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+    let cursorY = margin;
+    let primerBloque = true;
+
+    for(const seccion of secciones){
+      let canvas;
+      try{
+        canvas = await html2canvas(seccion, { scale: 2, backgroundColor: '#152019', useCORS: true });
+      }catch(errCanvas){
+        throw new Error('Falló al capturar una sección para el PDF (html2canvas): ' + errCanvas.message);
+      }
+
+      // Escala la sección al ancho útil de la página
+      let imgWidth = usableWidth;
+      let imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      // Si la sección completa no cabe ni en una página vacía, se reduce
+      // proporcionalmente hasta que quepa entera — nunca se corta a la mitad.
+      if(imgHeight > usableHeight){
+        const factor = usableHeight / imgHeight;
+        imgHeight = usableHeight;
+        imgWidth = imgWidth * factor;
+      }
+
+      // Si no cabe en el espacio restante de la página actual, salta de página.
+      if(!primerBloque && (cursorY + imgHeight) > (pageHeight - margin)){
+        pdf.addPage();
+        cursorY = margin;
+      }
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const x = margin + (usableWidth - imgWidth) / 2; // centrado si se redujo
+      pdf.addImage(imgData, 'JPEG', x, cursorY, imgWidth, imgHeight);
+      cursorY += imgHeight + 6; // separación entre secciones
+      primerBloque = false;
     }
 
     const fecha = document.getElementById('fecha').value || new Date().toISOString().slice(0,10);
