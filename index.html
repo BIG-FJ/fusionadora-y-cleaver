@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Informe Técnico · Fusionadora &amp; Cleaver</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
 <style>
 :root{
   --bg:#0d1712;
@@ -477,7 +477,7 @@ addTecnico(); addTecnico(); addTecnico();
    2) Despliégalo como "Aplicación web" (Ejecutar como: yo).
    3) Pega aquí la URL /exec que te entrega el despliegue.
    ========================================================= */
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwxVStjxVNrf8F-5EIIhnI3wCIP5ZCWxlM4ACv481zplTaQYUjgOUnOYVoL2R9uR71Qsg/exec'; // <-- reemplazar
+const APPS_SCRIPT_URL = 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT/exec'; // <-- reemplazar
 
 const btnSubir = document.getElementById('btnSubir');
 function resetBtnSubir(){ btnSubir.disabled = false; btnSubir.textContent = '⬆ Subir'; }
@@ -495,7 +495,12 @@ async function generarYSubirPdf(){
   try{
     const { jsPDF } = window.jspdf;
     const contenido = document.querySelector('main');
-    const canvas = await html2canvas(contenido, { scale: 2, backgroundColor: '#0d1712', useCORS: true });
+    let canvas;
+    try{
+      canvas = await html2canvas(contenido, { scale: 2, backgroundColor: '#0d1712', useCORS: true });
+    }catch(errCanvas){
+      throw new Error('Falló al capturar el contenido para el PDF (html2canvas): ' + errCanvas.message);
+    }
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
@@ -523,19 +528,33 @@ async function generarYSubirPdf(){
     alert('PDF subido correctamente a tu carpeta de Drive.');
   }catch(err){
     console.error(err);
-    alert('Ocurrió un error generando o subiendo el PDF. Revisa la consola para más detalle.');
+    alert('Error: ' + err.message);
   }finally{
     resetBtnSubir();
   }
 }
 
 async function subirBase64ADrive(pdfBase64, nombreArchivo){
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita el preflight CORS con Apps Script
-    body: JSON.stringify({ filename: nombreArchivo, pdfBase64 })
-  });
-  const data = await res.json();
+  let res;
+  try{
+    res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita el preflight CORS con Apps Script
+      body: JSON.stringify({ filename: nombreArchivo, pdfBase64 })
+    });
+  }catch(errRed){
+    throw new Error('No se pudo contactar el Apps Script (red/CORS): ' + errRed.message);
+  }
+
+  const raw = await res.text();
+  let data;
+  try{
+    data = JSON.parse(raw);
+  }catch(errParse){
+    // El Apps Script no devolvió JSON: normalmente pasa cuando la
+    // implementación no está autorizada o el acceso no es "Cualquier usuario".
+    throw new Error('El Apps Script no devolvió una respuesta válida (revisa el despliegue y sus permisos). Respuesta recibida: ' + raw.slice(0, 200));
+  }
   if(!data.ok){ throw new Error(data.error || 'Respuesta inválida del Apps Script.'); }
   return data;
 }
